@@ -1548,7 +1548,7 @@ bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus:
     }
 
     // Check the header
-    if (!CheckProofOfWork(block.GetHash(), block.nBits, consensusParams))
+    if (!CheckProofOfWork(block, consensusParams))
         return error("ReadBlockFromDisk: Errors in block header at %s", pos.ToString());
 
     return true;
@@ -2569,10 +2569,16 @@ void static UpdateTip(CBlockIndex *pindexNew) {
     nTimeBestReceived = GetTime();
     mempool.AddTransactionsUpdated(1);
 
-    LogPrintf("%s: new best=%s  height=%d  log2_work=%.8g  tx=%lu  date=%s progress=%f  cache=%.1fMiB(%utx)\n", __func__,
-      chainActive.Tip()->GetBlockHash().ToString(), chainActive.Height(), log(chainActive.Tip()->nChainWork.getdouble())/log(2.0), (unsigned long)chainActive.Tip()->nChainTx,
-      DateTimeStrFormat("%Y-%m-%d %H:%M:%S", chainActive.Tip()->GetBlockTime()),
-      Checkpoints::GuessVerificationProgress(chainParams.Checkpoints(), chainActive.Tip()), pcoinsTip->DynamicMemoryUsage() * (1.0 / (1<<20)), pcoinsTip->GetCacheSize());
+    LogPrintf("%s: new best=%s  height=%d  log2_work=%.8g  tx=%lu  date=%s  progress=%f  cache=%.1fMiB(%utx)  difficulty=%f\n", 
+            __func__,
+            chainActive.Tip()->GetBlockHash().ToString(), 
+            chainActive.Height(), 
+            log(chainActive.Tip()->nChainWork.getdouble())/log(2.0), 
+            (unsigned long)chainActive.Tip()->nChainTx, 
+            DateTimeStrFormat("%Y-%m-%d %H:%M:%S", chainActive.Tip()->GetBlockTime()),
+            Checkpoints::GuessVerificationProgress(chainParams.Checkpoints(), chainActive.Tip()), pcoinsTip->DynamicMemoryUsage() * (1.0 / (1<<20)),
+            pcoinsTip->GetCacheSize(),
+            pindexNew->GetBlockHeader().pow.calcWinProb(pindexNew->nBits));
 
     cvBlockChange.notify_all();
 
@@ -3206,7 +3212,7 @@ bool FindUndoPos(CValidationState &state, int nFile, CDiskBlockPos &pos, unsigne
 bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state, bool fCheckPOW)
 {
     // Check proof of work matches claimed amount
-    if (fCheckPOW && !CheckProofOfWork(block.GetHash(), block.nBits, Params().GetConsensus()))
+    if (fCheckPOW && !CheckProofOfWork(block, Params().GetConsensus()))
         return state.DoS(50, error("CheckBlockHeader(): proof of work failed"),
                          REJECT_INVALID, "high-hash");
 

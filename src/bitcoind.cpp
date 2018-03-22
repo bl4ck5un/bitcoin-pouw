@@ -20,6 +20,8 @@
 
 #include <stdio.h>
 
+#include "primitives/block.h"
+
 /* Introduction text for doxygen: */
 
 /*! \mainpage Developer documentation
@@ -178,6 +180,13 @@ bool AppInit(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
+    /*
+    CProofOfWork c;
+    c.guess(4);
+
+    return 0;
+    */
+
     SetupEnvironment();
 
     // Connect bitcoind signal handlers

@@ -165,10 +165,10 @@ UniValue generate(const UniValue& params, bool fHelp)
             LOCK(cs_main);
             IncrementExtraNonce(pblock, chainActive.Tip(), nExtraNonce);
         }
-        while (!CheckProofOfWork(pblock->GetHash(), pblock->nBits, Params().GetConsensus())) {
+        while (!CheckProofOfWork(*pblock, Params().GetConsensus())) {
             // Yes, there is a chance every nonce could fail to satisfy the -regtest
             // target -- 1 in 2^(2^32). That ain't gonna happen.
-            ++pblock->nNonce;
+            pblock->pow.guess(pblock->GetHash(false), pblock->nBits); 
         }
         CValidationState state;
         if (!ProcessNewBlock(state, Params(), NULL, pblock, true, NULL))
@@ -521,7 +521,7 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
 
     // Update nTime
     UpdateTime(pblock, Params().GetConsensus(), pindexPrev);
-    pblock->nNonce = 0;
+    pblock->pow.SetNull(); 
 
     UniValue aCaps(UniValue::VARR); aCaps.push_back("proposal");
 

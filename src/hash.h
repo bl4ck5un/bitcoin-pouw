@@ -135,21 +135,41 @@ private:
 public:
     int nType;
     int nVersion;
-
-    CHashWriter(int nTypeIn, int nVersionIn) : nType(nTypeIn), nVersion(nVersionIn) {}
-
+    bool limitBytes; 
+    size_t bytesLeft; 
+    
+    CHashWriter(int nTypeIn, int nVersionIn, size_t maxBytes = 0) : nType(nTypeIn), nVersion(nVersionIn) {
+        if (maxBytes == 0) {
+            limitBytes = false; 
+        } else { 
+            limitBytes = true; 
+            bytesLeft = maxBytes; 
+        } 
+    } 
+    
     CHashWriter& write(const char *pch, size_t size) {
-        ctx.Write((const unsigned char*)pch, size);
+        if (!limitBytes) { // No limit: 
+            ctx.Write((const unsigned char*)pch, size); 
+        } else { // Yes limit: 
+            if (bytesLeft > 0) { 
+                // Eat as many bytes as there's room left; ignore the rest. 
+                int bytesToEat = bytesLeft <= size ? bytesLeft : size; // bytesToEat = min(bytesLeft, size) 
+                bytesLeft -= bytesToEat; 
+                
+                ctx.Write((const unsigned char*)pch, bytesToEat); 
+            }
+        } 
+        
         return (*this);
     }
-
+    
     // invalidates the object
     uint256 GetHash() {
         uint256 result;
         ctx.Finalize((unsigned char*)&result);
         return result;
     }
-
+    
     template<typename T>
     CHashWriter& operator<<(const T& obj) {
         // Serialize to this stream
@@ -160,9 +180,9 @@ public:
 
 /** Compute the 256-bit hash of an object's serialization. */
 template<typename T>
-uint256 SerializeHash(const T& obj, int nType=SER_GETHASH, int nVersion=PROTOCOL_VERSION)
+uint256 SerializeHash(const T& obj, int nType=SER_GETHASH, int nVersion=PROTOCOL_VERSION, int maxBytes=0) 
 {
-    CHashWriter ss(nType, nVersion);
+    CHashWriter ss(nType, nVersion, maxBytes);
     ss << obj;
     return ss.GetHash();
 }

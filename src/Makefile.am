@@ -19,11 +19,25 @@ $(LIBLEVELDB) $(LIBMEMENV):
           OPT="$(AM_CXXFLAGS) $(PIE_FLAGS) $(CXXFLAGS) $(AM_CPPFLAGS) $(CPPFLAGS) -D__STDC_LIMIT_MACROS"
 endif
 
+# added by Fan to compile SGX stuff as an external library
+LIBPOUW_SGX_LDFLAGS = -L/opt/intel/sgxsdk/lib64 -lsgx_urts -lsgx_uae_service -L/usr/local/lib -lrestclient-cpp -lcrypto 
+
+LIBPOUW_SGX = $(builddir)/sgx/pouw.a
+$(LIBPOUW_SGX): FORCE
+	@$(MAKE) -BC $(@D)
+	@cp -f $(builddir)/sgx/Enclave/enclave.signed.so .
+	@cp -f $(builddir)/sgx/Enclave/enclave.signed.so ..
+
 BITCOIN_CONFIG_INCLUDES=-I$(builddir)/config
 BITCOIN_INCLUDES=-I$(builddir) -I$(builddir)/obj $(BOOST_CPPFLAGS) $(LEVELDB_CPPFLAGS) $(CRYPTO_CFLAGS) $(SSL_CFLAGS)
 
 BITCOIN_INCLUDES += -I$(srcdir)/secp256k1/include
 BITCOIN_INCLUDES += -I$(srcdir)/univalue/include
+
+# INCLUDES added by Fan
+BITCOIN_INCLUDES += -I$(srcdir)/sgx
+BITCOIN_INCLUDES += -I$(srcdir)/sgx/Common
+BITCOIN_INCLUDES += -I/opt/intel/sgxsdk/include
 
 LIBBITCOIN_SERVER=libbitcoin_server.a
 LIBBITCOIN_WALLET=libbitcoin_wallet.a
@@ -264,8 +278,8 @@ crypto_libbitcoin_crypto_a_SOURCES = \
   crypto/sha512.h
 
 # common: shared between bitcoind, and bitcoin-qt and non-server tools
-libbitcoin_common_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
-libbitcoin_common_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+libbitcoin_common_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(SGX_C_FLAGS)
+libbitcoin_common_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS) $(SGX_CXX_FLAGS)
 libbitcoin_common_a_SOURCES = \
   amount.cpp \
   arith_uint256.cpp \
@@ -333,7 +347,7 @@ nodist_libbitcoin_util_a_SOURCES = $(srcdir)/obj/build.h
 bitcoind_SOURCES = bitcoind.cpp
 bitcoind_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 bitcoind_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-bitcoind_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
+bitcoind_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS) 
 
 if TARGET_WINDOWS
 bitcoind_SOURCES += bitcoind-res.rc
@@ -359,11 +373,15 @@ endif
 
 bitcoind_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS)
 
+# added by Fan
+bitcoind_LDADD += $(LIBPOUW_SGX) $(LIBPOUW_SGX_LDFLAGS)
+
+
 # bitcoin-cli binary #
 bitcoin_cli_SOURCES = bitcoin-cli.cpp
 bitcoin_cli_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(EVENT_CFLAGS)
 bitcoin_cli_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-bitcoin_cli_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
+bitcoin_cli_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS) 
 
 if TARGET_WINDOWS
 bitcoin_cli_SOURCES += bitcoin-cli-res.rc
@@ -376,12 +394,13 @@ bitcoin_cli_LDADD = \
 
 bitcoin_cli_LDADD += $(BOOST_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(EVENT_LIBS)
 #
+bitcoin_cli_LDADD += $(LIBPOUW_SGX) $(LIBPOUW_SGX_LDFLAGS)
 
 # bitcoin-tx binary #
 bitcoin_tx_SOURCES = bitcoin-tx.cpp
 bitcoin_tx_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 bitcoin_tx_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-bitcoin_tx_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
+bitcoin_tx_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS) 
 
 if TARGET_WINDOWS
 bitcoin_tx_SOURCES += bitcoin-tx-res.rc
@@ -395,6 +414,7 @@ bitcoin_tx_LDADD = \
   $(LIBSECP256K1)
 
 bitcoin_tx_LDADD += $(BOOST_LIBS) $(CRYPTO_LIBS)
+bitcoin_tx_LDADD += $(LIBPOUW_SGX) $(LIBPOUW_SGX_LDFLAGS)
 #
 
 # bitcoinconsensus library #
@@ -419,7 +439,7 @@ if GLIBC_BACK_COMPAT
   libbitcoinconsensus_la_SOURCES += compat/glibc_compat.cpp
 endif
 
-libbitcoinconsensus_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined $(RELDFLAGS)
+libbitcoinconsensus_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined $(RELDFLAGS) $(SGX_LDFLAGS)
 libbitcoinconsensus_la_LIBADD = $(LIBSECP256K1)
 libbitcoinconsensus_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(builddir)/obj -I$(srcdir)/secp256k1/include -DBUILD_BITCOIN_INTERNAL
 libbitcoinconsensus_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)

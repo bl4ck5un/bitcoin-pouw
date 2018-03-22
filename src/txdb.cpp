@@ -199,11 +199,11 @@ bool CBlockTreeDB::LoadBlockIndexGuts()
                 pindexNew->hashMerkleRoot = diskindex.hashMerkleRoot;
                 pindexNew->nTime          = diskindex.nTime;
                 pindexNew->nBits          = diskindex.nBits;
-                pindexNew->nNonce         = diskindex.nNonce;
+                pindexNew->pow            = diskindex.pow;
                 pindexNew->nStatus        = diskindex.nStatus;
                 pindexNew->nTx            = diskindex.nTx;
 
-                if (!CheckProofOfWork(pindexNew->GetBlockHash(), pindexNew->nBits, Params().GetConsensus()))
+                if (!CheckProofOfWork(pindexNew->GetBlockHeader(), Params().GetConsensus()))
                     return error("LoadBlockIndex(): CheckProofOfWork failed: %s", pindexNew->ToString());
 
                 pcursor->Next();

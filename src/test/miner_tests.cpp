@@ -18,6 +18,7 @@
 
 #include "test/test_bitcoin.h"
 
+#include <stdint.h>
 #include <boost/test/unit_test.hpp>
 
 BOOST_FIXTURE_TEST_SUITE(miner_tests, TestingSetup)
@@ -112,7 +113,10 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
         if (txFirst.size() < 4)
             txFirst.push_back(new CTransaction(pblock->vtx[0]));
         pblock->hashMerkleRoot = BlockMerkleRoot(*pblock);
-        pblock->nNonce = blockinfo[i].nonce;
+
+        throw std::runtime_error("Test broken since we moved to modular PoW.");
+        //pblock->pow.nNonce = blockinfo[i].nonce;
+        
         CValidationState state;
         BOOST_CHECK(ProcessNewBlock(state, chainparams, NULL, pblock, true, NULL));
         BOOST_CHECK(state.IsValid());

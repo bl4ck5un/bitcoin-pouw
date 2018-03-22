@@ -970,6 +970,8 @@ PKG_CONFIG_LIBDIR="$PKGCONFIG_LIBDIR_TEMP"
 ac_configure_args="${ac_configure_args} --disable-shared --with-pic --with-bignum=no --enable-module-recovery"
 AC_CONFIG_SUBDIRS([src/secp256k1 src/univalue])
 
+AM_CONDITIONAL([SGX_DEBUG], [ true ])
+
 AC_OUTPUT
 
 dnl Taken from https://wiki.debian.org/RpathIssue

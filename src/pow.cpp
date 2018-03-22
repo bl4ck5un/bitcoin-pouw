@@ -76,29 +76,42 @@ unsigned int CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nF
         bnNew = bnPowLimit;
 
     /// debug print
+    arith_uint256 max256; 
+    max256.SetHex("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"); // ITTAY 
     LogPrintf("GetNextWorkRequired RETARGET\n");
-    LogPrintf("params.nPowTargetTimespan = %d    nActualTimespan = %d\n", params.nPowTargetTimespan, nActualTimespan);
-    LogPrintf("Before: %08x  %s\n", pindexLast->nBits, bnOld.ToString());
-    LogPrintf("After:  %08x  %s\n", bnNew.GetCompact(), bnNew.ToString());
+    LogPrintf("params.nPowTargetTimespan = %d    nActualTimespan = %d\n", params.nPowTargetTimespan, nActualTimespan); 
+
+    LogPrintf("Before: %08x  %s  (%f)\n", pindexLast->nBits, bnOld.ToString(), 
+                bnOld.getdouble() / max256.getdouble()); // ITTAY 
+    LogPrintf("After:  %08x  %s  (%f)\n", bnNew.GetCompact(), bnNew.ToString(), 
+                bnNew.getdouble() / max256.getdouble()); // ITTAY 
 
     return bnNew.GetCompact();
 }
 
-bool CheckProofOfWork(uint256 hash, unsigned int nBits, const Consensus::Params& params)
+bool CheckProofOfWork(CBlockHeader blockHeader, const Consensus::Params& params)
 {
+//     LogPrintf("ITTAY DEBUG: Returning true for everything before we put in the actual PoW mechanism"); 
+//     return true; 
+    
     bool fNegative;
     bool fOverflow;
     arith_uint256 bnTarget;
 
-    bnTarget.SetCompact(nBits, &fNegative, &fOverflow);
+    bnTarget.SetCompact(blockHeader.nBits, &fNegative, &fOverflow);
 
     // Check range
-    if (fNegative || bnTarget == 0 || fOverflow || bnTarget > UintToArith256(params.powLimit))
+    if (fNegative || bnTarget == 0 || fOverflow || bnTarget > UintToArith256(params.powLimit)) { 
+        LogPrintf("bnTarget is %s\n", bnTarget.ToString()); 
+        LogPrintf("limit is    %s\n", UintToArith256(params.powLimit).ToString()); 
         return error("CheckProofOfWork(): nBits below minimum work");
+    }
 
     // Check proof of work matches claimed amount
-    if (UintToArith256(hash) > bnTarget)
+//     if (UintToArith256(blockHeader.GetHash()) > bnTarget)
+    if (!blockHeader.pow.check(blockHeader.GetHash(false), blockHeader.nBits)) { 
         return error("CheckProofOfWork(): hash doesn't match nBits");
+    } 
 
     return true;
 }

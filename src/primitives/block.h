@@ -9,6 +9,113 @@
 #include "primitives/transaction.h"
 #include "serialize.h"
 #include "uint256.h"
+#include "arith_uint256.h"
+#include "util.h"
+#include "sgx_uae_service.h"
+
+#include "pouw.h"
+
+#include <univalue.h>
+#include <string>
+
+using namespace std;
+
+class CBlockHeader;
+
+// Hard-coded ID of compliance checking enclave
+// TODO: Hard-code it :)
+const sgx_measurement_t COMPLIANCE_CODE_ID = {
+    {162, 168, 146, 201, 124, 67, 220, 22, 204, 237, 181, 222, 216, 254, 223, 151, 247, 54, 143, 180, 248, 22, 255, 81, 244, 43, 145, 108, 165, 185, 2, 136} 
+}; 
+
+enum ValidationStatus {UNCHECKED, VERIFIED, BROKEN}; 
+
+class CProofOfWork 
+{
+public: 
+    /* Quote  */ 
+    int16_t lenQuoteCompliance; 
+    string quoteCompliance; 
+    int16_t lenQuoteWinning; 
+    string quoteWinning; 
+    ValidationStatus validationStatus; // memory only
+//    bool attestation_verified; // memory only
+
+    CProofOfWork() {
+        SetNull();
+    }
+    
+    /**
+     * Copy constructor
+     */ 
+    CProofOfWork(const CProofOfWork &obj) {
+        quoteCompliance = obj.quoteCompliance; 
+        quoteWinning = obj.quoteWinning; 
+        this->validationStatus = obj.validationStatus;
+    } 
+    
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+//        LogPrintf("Before ================================= %s (%d)\n", quoteCompliance, quoteCompliance.size()); 
+        lenQuoteCompliance = quoteCompliance.size(); // Reading or writing, now size match. 
+        READWRITE(lenQuoteCompliance); // Either read it or write it 
+        quoteCompliance.resize(lenQuoteCompliance); 
+//        LogPrintf("================================= size now: %d\n", lenQuoteCompliance); 
+        for(int i = 0 ; i < lenQuoteCompliance ; i++) { 
+            READWRITE(quoteCompliance[i]); 
+        }
+//        LogPrintf("\n" ); 
+
+//        LogPrintf("================================= %s (%d)\n", quoteWinning, quoteWinning.size()); 
+        lenQuoteWinning = quoteWinning.size(); // Reading or writing, now size match. 
+        READWRITE(lenQuoteWinning); // Either read it or write it 
+        quoteWinning.resize(lenQuoteWinning); 
+        for(int i = 0 ; i < lenQuoteWinning ; i++) { 
+//            LogPrintf("================================= A %d\n", quoteCompliance.size());
+//            LogPrintf("================================= B %d\n", quoteWinning.size());
+            READWRITE(quoteWinning[i]); 
+        }
+
+//        LogPrintf("================================= (%d) %s\n", quoteCompliance.size(), quoteCompliance);
+//        LogPrintf("================================= (%d) %s\n", quoteWinning.size(), quoteWinning); 
+    }
+
+    void SetNull() { 
+        // LogPrintf("================================= SetNull\n");
+        this->quoteCompliance.clear();
+        this->quoteWinning.clear();
+        this->validationStatus = UNCHECKED; 
+    } 
+
+    void SetGenesis() 
+    {
+        // LogPrintf("================================= SetGenesis\n");
+        quoteCompliance = "genesis";
+        quoteWinning = "genesis";
+    }
+
+    static double calcWinProb(uint32_t nBits) {
+        arith_uint256 target; 
+        arith_uint256 max256("0x");
+        target.SetCompact(nBits); 
+        max256.SetHex("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"); 
+        double probability = target.getdouble() / max256.getdouble(); 
+        return probability;
+    }
+    
+    void guess(uint256 headerWithoutPoWHash, uint32_t nBits);
+    
+    /**
+     * Check that the pow is committed to the given hash and the 
+     * difficulty matches nBits.
+     */ 
+    bool check(uint256 headerWithoutPoWHash, uint32_t nBits);  
+    
+    string ToString() const; 
+    UniValue ToJSON() const; 
+}; 
 
 /** Nodes collect new transactions into a block, hash them into a hash tree,
  * and scan through nonce values to make the block's hash satisfy proof-of-work
@@ -26,7 +133,7 @@ public:
     uint256 hashMerkleRoot;
     uint32_t nTime;
     uint32_t nBits;
-    uint32_t nNonce;
+    CProofOfWork pow; 
 
     CBlockHeader()
     {
@@ -42,9 +149,20 @@ public:
         READWRITE(hashPrevBlock);
         READWRITE(hashMerkleRoot);
         READWRITE(nTime);
-        READWRITE(nBits);
-        READWRITE(nNonce);
+        READWRITE(nBits); 
+        READWRITE(pow); 
     }
+
+//     template <typename Stream, typename Operation>
+//     inline void NoPoWSerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+//         READWRITE(this->nVersion);
+//         nVersion = this->nVersion;
+//         READWRITE(hashPrevBlock);
+//         READWRITE(hashMerkleRoot);
+//         READWRITE(nTime);
+//         READWRITE(nBits);
+//         READWRITE(pow);
+//     }
 
     void SetNull()
     {
@@ -53,7 +171,7 @@ public:
         hashMerkleRoot.SetNull();
         nTime = 0;
         nBits = 0;
-        nNonce = 0;
+        pow.SetNull(); 
     }
 
     bool IsNull() const
@@ -61,7 +179,7 @@ public:
         return (nBits == 0);
     }
 
-    uint256 GetHash() const;
+    uint256 GetHash(bool withPoW = true) const;
 
     int64_t GetBlockTime() const
     {
@@ -113,7 +231,7 @@ public:
         block.hashMerkleRoot = hashMerkleRoot;
         block.nTime          = nTime;
         block.nBits          = nBits;
-        block.nNonce         = nNonce;
+        block.pow            = pow; 
         return block;
     }
 
